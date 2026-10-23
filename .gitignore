@@ -1,0 +1,9 @@
+.local/
+.env
+.env.*
+!.env.example
+node_modules/
+dist/
+.wrangler/
+supabase/.temp/
+supabase/.branches/
