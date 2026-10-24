@@ -9,7 +9,27 @@ A shared freezer inventory web app for two household members, opened from a QR c
 - Supabase project reference: `olgldvjabjhxkbnfpcwh`
 - Region: `us-east-2`
 
-The Stage 1 database schema is deployed. Application code and Cloudflare deployment are pending. See [database architecture](docs/database.md) for the schema, frontend RPC contract, and verification commands.
+The Stage 1 database schema and the first interface chunk are implemented: email/password authentication, Remember me, password reset, household setup, invitation codes, and a read-only inventory screen. Item entry and quantity controls are the next chunk. Cloudflare deployment is pending. See [database architecture](docs/database.md) and [authentication setup](docs/authentication.md).
+
+## Run the app
+
+```powershell
+npm.cmd ci
+Copy-Item .env.example .env.local
+# Set the public Supabase key in .env.local, then:
+npm.cmd run dev
+```
+
+Open `http://127.0.0.1:5173`. This computer already has an ignored `.env.local` configured. Do not overwrite it unless reconfiguring the project.
+
+```powershell
+npm.cmd run build
+npm.cmd test
+npx.cmd playwright install chromium
+npm.cmd run test:e2e
+```
+
+Cloudflare Pages can build with `npm run build` and publish `dist`. Set `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` as build variables. Configure the final Auth site URL and redirect allowlist before using confirmation or reset links in production.
 
 ## Supabase CLI
 

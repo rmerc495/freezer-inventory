@@ -16,7 +16,7 @@ All inventory references include the household ID, preventing a change from refe
 
 ## Access and onboarding
 
-Users sign in with Supabase Auth. The first user calls `create_household`; it creates the household and their membership atomically. Once the second user has an Auth account, the owner can call `add_household_member` with that account's UUID. The app will need to provide the onboarding flow; no personal accounts or live household have been created by this migration.
+Users sign in with Supabase Auth. The first user calls `create_household`; it creates the household and their membership atomically. The interface now supports onboarding using owner-issued, one-time invitation codes; see [authentication setup](authentication.md). The original `add_household_member` RPC remains available to the owner for account-UUID administration. No personal accounts or live household were created by these migrations.
 
 Anonymous callers have no table or RPC access. Authenticated members can read only their households and related rows under row-level security. They cannot directly insert, update, or delete table rows. Writes use narrowly granted database functions that independently verify the caller's membership. The household owner alone can add members. User IDs come from the signed-in session, never from a caller-provided actor field.
 
