@@ -77,7 +77,12 @@ test('signup confirmation and mismatched passwords', async ({ page }) => {
   await expect(page.getByRole('alert')).toContainText('don’t match');
   await page.getByLabel('Confirm password').fill('test-password-123');
   await page.getByRole('button', { name: 'Create account', exact: true }).click();
-  await expect(page.getByRole('status')).toContainText('Check your email');
+  await expect(page.getByRole('heading', { name: 'Check your email' })).toBeVisible();
+  await expect(page.getByText('partner@example.com', { exact: true })).toBeVisible();
+  await expect(page.getByLabel('Password', { exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Create account', exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Send a new confirmation email' }).click();
+  await expect(page.getByRole('status')).toContainText('fresh confirmation email');
 });
 test('mobile login fits the viewport', async ({ page }) => {
   await mockBackend(page); await page.setViewportSize({ width: 390, height: 844 }); await page.goto('/');
@@ -101,4 +106,9 @@ test('desktop login preview', async ({ page }) => {
   await mockBackend(page); await page.setViewportSize({ width: 1440, height: 1000 }); await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Open your freezer' })).toBeVisible();
   await page.screenshot({ path: '.local/login-desktop.png', fullPage: true });
+});
+test('email confirmation callback returns to the signed-in app', async ({ page }) => {
+  await mockBackend(page);
+  await page.goto(`/#access_token=${accessToken}&refresh_token=test-refresh-token&expires_in=3600&token_type=bearer&type=signup`);
+  await expect(page.getByRole('heading', { name: 'Welcome home.' })).toBeVisible();
 });

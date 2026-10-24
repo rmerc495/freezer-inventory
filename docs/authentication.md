@@ -6,7 +6,9 @@ React, TypeScript, Vite, and Supabase JS provide responsive sign-in, account cre
 
 ## Hosted configuration
 
-Email/password authentication and signups are enabled. Email confirmation remains required. The hosted password minimum is eight characters. The development site URL is `http://127.0.0.1:5173`, with both `http://127.0.0.1:5173/` and `http://localhost:5173/` allowed as redirects.
+Email/password authentication and signups are enabled. Email confirmation remains required. The hosted password minimum is eight characters. During Wi-Fi testing the hosted site URL is `http://192.168.4.44:5173`, with that address and both loopback addresses allowed as redirects. The ignored `.env.local` sets `VITE_AUTH_REDIRECT_URL=http://192.168.4.44:5173/` so emails requested from the PC can also open on a phone. Update this temporary address if the PC's IP changes. Production should use the final HTTPS address.
+
+Successful signup replaces the signup form with a dedicated Check your email screen, including the submitted address, a resend action, and a return-to-sign-in action. Both signup and resend use the same callback URL. Supabase processes a confirmed signup callback and the app opens household setup or the existing inventory. Previously sent emails may still contain old redirect addresses; request a fresh email after a redirect change. If an older link already verified the account, sign in normally.
 
 `config/auth/supabase/config.toml` deliberately declares only the managed Auth properties. Use this small configuration to avoid pushing unrelated local-development settings:
 

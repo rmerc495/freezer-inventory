@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import type { Session } from '@supabase/supabase-js';
-import { supabase, sessionStorageAdapter } from './supabase';
+import { supabase, sessionStorageAdapter, authRedirectUrl } from './supabase';
 
 type Household = { id: string; name: string; owner_id: string };
 type Item = { id: string; name: string; quantity: number };
@@ -47,12 +47,13 @@ function Auth({ mode, setMode, onPasswordSaved, authError }: { mode: Mode; setMo
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [confirmationEmail, setConfirmationEmail] = useState('');
   function switchMode(next: Mode) { setMode(next); setError(''); setNotice(''); setPassword(''); setConfirm(''); }
   async function submit(event: FormEvent) {
     event.preventDefault(); setError(''); setNotice(''); setBusy(true);
     try {
       if ((mode === 'signup' || mode === 'reset') && password !== confirm) throw new Error('Your passwords don’t match.');
-      const redirectTo = `${location.origin}/`;
+      const redirectTo = authRedirectUrl;
       if (mode === 'forgot') {
         const { error } = await supabase!.auth.resetPasswordForEmail(email.trim(), { redirectTo });
         if (error) throw error;
@@ -66,7 +67,7 @@ function Auth({ mode, setMode, onPasswordSaved, authError }: { mode: Mode; setMo
         if (mode === 'signup') {
           const { data, error } = await supabase!.auth.signUp({ email: email.trim(), password, options: { emailRedirectTo: redirectTo } });
           if (error) throw error;
-          if (!data.session) setNotice('Check your email to confirm your account, then come back and sign in.');
+          if (!data.session) { setConfirmationEmail(email.trim()); setPassword(''); setConfirm(''); }
         } else {
           const { error } = await supabase!.auth.signInWithPassword({ email: email.trim(), password });
           if (error) throw error;
@@ -74,6 +75,7 @@ function Auth({ mode, setMode, onPasswordSaved, authError }: { mode: Mode; setMo
       }
     } catch (e) { setError(message(e)); } finally { setBusy(false); }
   }
+  if (confirmationEmail) return <main className="confirmation-layout"><section className="auth-card confirmation-card" aria-labelledby="confirmation-title"><span className="card-icon" aria-hidden="true">✉</span><h1 id="confirmation-title">Check your email</h1><p className="muted">We sent a confirmation link to <strong>{confirmationEmail}</strong>.</p><p>Tap the confirmation button in that email to verify your account and return to your freezer.</p><p className="muted">Can’t find it? Check your spam folder, or request a fresh link below.</p>{error && <p className="error" role="alert">{error}</p>}{notice && <p className="notice" role="status">{notice}</p>}<button className="primary" disabled={busy} onClick={() => { setBusy(true); setError(''); setNotice(''); void supabase!.auth.resend({ type: 'signup', email: confirmationEmail, options: { emailRedirectTo: authRedirectUrl } }).then(({ error }) => { if (error) setError(message(error)); else setNotice('A fresh confirmation email is on its way. Please use the newest link.'); }).catch(e => setError(message(e))).finally(() => setBusy(false)); }}>{busy ? 'Sending…' : 'Send a new confirmation email'}</button><button className="text-button" onClick={() => { setConfirmationEmail(''); switchMode('login'); }}>Back to sign in</button></section></main>;
   const title = { login: 'Good food.\nAlready home.', signup: 'Make room for\na little less chaos.', forgot: 'Let’s get you\nback in.', reset: 'A fresh start\nfor your password.' }[mode];
   return <main className="auth-layout">
     <section className="welcome"><span className="eyebrow">YOUR HOUSEHOLD, IN STOCK</span><h1>{title}</h1><p>Everything in your freezer, in one place.<br/>A quick look now. An easier dinner later.</p><div className="freezer-art" aria-hidden="true"><div className="freezer-lid"/><div className="freezer-body"><span className="freezer-handle"/><span className="freezer-note">already<br/>got it. <span>✓</span></span><span className="freezer-light"/></div><div className="art-shadow"/></div><span className="welcome-note">Your shared list. Always within reach.</span></section>
