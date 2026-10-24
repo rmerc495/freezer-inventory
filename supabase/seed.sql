@@ -1,0 +1,1 @@
+-- Intentionally empty. Household membership is created after Supabase Auth sign-in.

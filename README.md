@@ -9,7 +9,7 @@ A shared freezer inventory web app for two household members, opened from a QR c
 - Supabase project reference: `olgldvjabjhxkbnfpcwh`
 - Region: `us-east-2`
 
-The database project has been provisioned. Application code and inventory tables have not been created yet.
+The Stage 1 database schema is deployed. Application code and Cloudflare deployment are pending. See [database architecture](docs/database.md) for the schema, frontend RPC contract, and verification commands.
 
 ## Supabase CLI
 
