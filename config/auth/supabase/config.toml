@@ -2,7 +2,7 @@
 project_id = "freezer_inventory"
 [auth]
 site_url = "http://192.168.4.44:5173"
-additional_redirect_urls = ["http://127.0.0.1:5173/", "http://localhost:5173/", "http://192.168.4.44:5173/"]
+additional_redirect_urls = ["http://127.0.0.1:5173/", "http://localhost:5173/", "http://192.168.4.44:5173/", "http://127.0.0.1:5173/?invite=*", "http://localhost:5173/?invite=*", "http://192.168.4.44:5173/?invite=*"]
 minimum_password_length = 8
 [auth.email]
 enable_signup = true

@@ -15,6 +15,7 @@ async function mockBackend(page: Page, existingHousehold = false) {
     else if (url.pathname.endsWith('/user')) body = user;
     else if (url.pathname.endsWith('/households')) body = connected ? [{ id: householdId, name: 'Our Freezer', owner_id: userId }] : [];
     else if (url.pathname.endsWith('/inventory_items')) body = [];
+    else if (url.pathname.endsWith('/freezers')) body = [{ id: '55555555-5555-4555-8555-555555555555', name: 'Main Freezer', is_default: true }];
     else if (url.pathname.endsWith('/rpc/create_household') || url.pathname.endsWith('/rpc/join_household')) { connected = true; body = householdId; }
     else if (url.pathname.endsWith('/rpc/create_household_invite')) body = '12345678-1234-4234-8234-123456789abc';
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) });
@@ -31,31 +32,33 @@ test('sign in, create household, and create invitation', async ({ page }) => {
   await mockBackend(page); await login(page);
   await expect(page.getByRole('heading', { name: 'Welcome home.' })).toBeVisible();
   await page.getByRole('button', { name: 'Create household', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Our Freezer' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Your freezers', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Profile settings', exact: true }).click();
   await page.getByRole('button', { name: 'Share household' }).click();
-  await page.getByRole('button', { name: 'Create invitation code' }).click();
-  await expect(page.getByLabel('Invitation code')).toHaveValue('12345678-1234-4234-8234-123456789abc');
+  await page.getByRole('button', { name: 'Copy invite link' }).click();
+  await expect(page.getByLabel('Invite link')).toHaveValue(/\?invite=12345678-1234-4234-8234-123456789abc$/);
 });
 test('join household using partner code', async ({ page }) => {
   await mockBackend(page); await login(page);
   await page.getByRole('button', { name: 'Join your household' }).click();
   await page.getByLabel('Invitation code').fill('partner-code');
   await page.getByRole('button', { name: 'Join household', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Our Freezer' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Your freezers', exact: true })).toBeVisible();
 });
 test('remembered login persists to a fresh tab, and sign out removes it', async ({ page, context }) => {
   await mockBackend(page, true); await login(page, true);
-  await expect(page.getByRole('heading', { name: 'Our Freezer' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Your freezers', exact: true })).toBeVisible();
   const next = await context.newPage(); await mockBackend(next, true); await next.goto('/');
-  await expect(next.getByRole('heading', { name: 'Our Freezer' })).toBeVisible();
+  await expect(next.getByRole('heading', { name: 'Your freezers', exact: true })).toBeVisible();
+  await next.getByRole('button', { name: 'Profile settings', exact: true }).click();
   await next.getByRole('button', { name: 'Sign out' }).click();
   await expect(next.getByRole('heading', { name: 'Open your freezer' })).toBeVisible();
   expect(await next.evaluate(() => Object.keys(localStorage).some(k => k.includes('auth-token')))).toBe(false);
 });
 test('unchecked login persists on reload but does not persist to a fresh tab', async ({ page, context }) => {
   await mockBackend(page, true); await login(page);
-  await expect(page.getByRole('heading', { name: 'Our Freezer' })).toBeVisible();
-  await page.reload(); await expect(page.getByRole('heading', { name: 'Our Freezer' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Your freezers', exact: true })).toBeVisible();
+  await page.reload(); await expect(page.getByRole('heading', { name: 'Your freezers', exact: true })).toBeVisible();
   const next = await context.newPage(); await mockBackend(next, true); await next.goto('/');
   await expect(next.getByRole('heading', { name: 'Open your freezer' })).toBeVisible();
 });
@@ -99,7 +102,7 @@ test('recovery link opens password form and survives a reload', async ({ page })
   await page.getByLabel('Password', { exact: true }).fill('new-test-password-456');
   await page.getByLabel('Confirm password').fill('new-test-password-456');
   await page.getByRole('button', { name: 'Save new password' }).click();
-  await expect(page.getByRole('heading', { name: 'Our Freezer' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Your freezers', exact: true })).toBeVisible();
   expect(await page.evaluate(() => sessionStorage.getItem('freezer.password-recovery'))).toBeNull();
 });
 test('desktop login preview', async ({ page }) => {
@@ -111,4 +114,73 @@ test('email confirmation callback returns to the signed-in app', async ({ page }
   await mockBackend(page);
   await page.goto(`/#access_token=${accessToken}&refresh_token=test-refresh-token&expires_in=3600&token_type=bearer&type=signup`);
   await expect(page.getByRole('heading', { name: 'Welcome home.' })).toBeVisible();
+});
+
+const invitation = '12345678-1234-4234-8234-123456789abc';
+test('invite opens signup and email confirmation joins on a fresh browser', async ({ page, browser }) => {
+  await mockBackend(page);
+  let redirect = '';
+  await page.route('**/auth/v1/signup**', route => {
+    redirect = new URL(route.request().url()).searchParams.get('redirect_to') ?? '';
+    return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
+  });
+  await page.goto(`/?invite=${invitation}`);
+  await expect(page.getByRole('heading', { name: 'Create your account' })).toBeVisible();
+  await page.getByLabel('Email address').fill('partner@example.com');
+  await page.getByLabel('Password', { exact: true }).fill('test-password-123');
+  await page.getByLabel('Confirm password').fill('test-password-123');
+  await page.getByRole('button', { name: 'Create account', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Check your email' })).toBeVisible();
+  expect(new URL(redirect).searchParams.get('invite')).toBe(invitation);
+  const context = await browser.newContext(); const confirmed = await context.newPage();
+  await mockBackend(confirmed);
+  let joinedCode = '';
+  confirmed.on('request', request => { if (request.url().endsWith('/rpc/join_household')) joinedCode = request.postDataJSON().p_code; });
+  await confirmed.goto(`/?invite=${invitation}#access_token=${accessToken}&refresh_token=test-refresh-token&expires_in=3600&token_type=bearer&type=signup`);
+  await expect(confirmed.getByRole('heading', { name: 'Your freezers', exact: true })).toBeVisible();
+  expect(joinedCode).toBe(invitation);
+  expect(await confirmed.evaluate(() => localStorage.getItem('freezer.pending-invitation'))).toBeNull();
+  expect(new URL(confirmed.url()).searchParams.has('invite')).toBe(false);
+  await context.close();
+});
+
+test('invite survives reload and an existing account can sign in to join', async ({ page }) => {
+  await mockBackend(page);
+  await page.goto(`/?invite=${invitation}`); await page.reload();
+  await expect(page.getByRole('heading', { name: 'Create your account' })).toBeVisible();
+  await page.getByRole('button', { name: 'Back to sign in' }).click();
+  await page.getByLabel('Email address').fill('partner@example.com');
+  await page.getByLabel('Password', { exact: true }).fill('test-password-123');
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Your freezers', exact: true })).toBeVisible();
+});
+
+test('expired invite shows an actionable error without creating a household', async ({ page }) => {
+  await mockBackend(page);
+  await page.route('**/rpc/join_household', route => route.fulfill({ status: 400, contentType: 'application/json', body: JSON.stringify({ message: 'This invitation is invalid or expired. Ask for a new link.' }) }));
+  await page.goto(`/?invite=${invitation}#access_token=${accessToken}&refresh_token=test-refresh-token&expires_in=3600&token_type=bearer&type=signup`);
+  await expect(page.getByRole('alert')).toContainText('invalid or expired');
+  await expect(page.getByRole('button', { name: 'Try invitation again' })).toBeVisible();
+  await page.getByRole('button', { name: 'Continue without this invitation' }).click();
+  await expect(page.getByRole('heading', { name: 'Welcome home.' })).toBeVisible();
+});
+
+test('copy invite link works without Clipboard API and reuses the same invitation', async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'clipboard', { value: undefined, configurable: true });
+    document.execCommand = command => {
+      if (command === 'copy') sessionStorage.setItem('test-copied-link', (document.activeElement as HTMLTextAreaElement).value);
+      return command === 'copy';
+    };
+  });
+  await mockBackend(page, true);
+  let created = 0;
+  page.on('request', request => { if (request.url().endsWith('/rpc/create_household_invite')) created++; });
+  await login(page); await page.getByRole('button', { name: 'Profile settings', exact: true }).click();
+  await page.getByRole('button', { name: 'Share household' }).click();
+  await page.getByRole('button', { name: 'Copy invite link', exact: true }).click();
+  await expect(page.getByRole('status')).toContainText('Invite link copied');
+  expect(await page.evaluate(() => sessionStorage.getItem('test-copied-link'))).toContain(`?invite=${invitation}`);
+  await page.getByRole('button', { name: 'Copy invite link', exact: true }).click();
+  expect(created).toBe(1);
 });

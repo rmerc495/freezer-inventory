@@ -4,6 +4,10 @@
 # working directory name when running `supabase init`.
 project_id = "freezer_inventory"
 
+[functions.enrich-items]
+# Authentication is performed inside the function with x-worker-secret.
+verify_jwt = false
+
 [api]
 enabled = true
 # Port to use for the API URL.
