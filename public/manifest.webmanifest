@@ -1,0 +1,16 @@
+{
+  "id": "/",
+  "name": "Freezer Inventory",
+  "short_name": "Freezer",
+  "description": "Your household freezer inventory, always within reach.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#fffefb",
+  "theme_color": "#184d43",
+  "icons": [
+    { "src": "/icons/freezer-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/freezer-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/freezer-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
