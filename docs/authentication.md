@@ -1,5 +1,17 @@
 # Authentication and household interface
 
+## Email household invitations (November 2026)
+
+Profile settings → Share household now opens an email form. Send invitation calls the authenticated `invite-household` Edge Function. The server checks the caller's verified session and the household-owner permission before creating an email-bound, single-use invitation. New recipients are prepared in Supabase Auth using the admin invitation API; their email opens password setup before joining. Existing accounts receive an email sign-in link without a password change. No Auth action link, server credential, or temporary password is exposed to the inviting user.
+
+`create_household_email_invite` validates and normalizes the email, rejects existing members, and enforces a one-minute household invitation cooldown. Redemption checks the actual verified Auth email against the intended recipient. Membership is granted only after acceptance; legacy text invitations retain their existing behavior. Creating a new invitation replaces the previous unused invitation for that household.
+
+The Edge Function uses the built-in server-side Supabase credentials. `HOUSEHOLD_APP_URL` optionally overrides the production callback, which defaults to `https://freezer-inventory.ryanmercier88.workers.dev/`. When moving to a new domain, change this server setting and Supabase's Site URL/redirect allowlist together. The client does not control email callback destinations.
+
+Email delivery requires working SMTP for this specific project. A sender domain configured on another Supabase project is not confirmation that this project uses it. The UI reports provider failures and retains the entered email for retry; it never reports a failed email as sent. Provider acceptance still requires checking the recipient's inbox for delivery.
+
+Validation: production build, 30 unit tests, 16 authentication browser tests, and rollback-only email-invitation SQL checks passed. The SQL checks cover owner-only creation, email validation, cooldown, verified recipient binding, existing members, retrying acceptance, and anonymous denial. Security advisors retain the established controlled SECURITY DEFINER warnings and the pre-existing leaked-password protection warning, with no error-level findings.
+
 ## This chunk
 
 React, TypeScript, Vite, and Supabase JS provide responsive sign-in, account creation, password reset, Remember me, household creation/joining, owner-generated invitation links, sign-out, and inventory organized into named freezers. Single-item and bulk entry, previously used suggestions, Name/Recently Changed sorting, plus/minus, and Undo are implemented; see database.md for their behavior and verification. Contextual search, deployment, and QR generation remain later chunks. The current search filters item names only.

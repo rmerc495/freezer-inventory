@@ -17,7 +17,7 @@ async function mockBackend(page: Page, existingHousehold = false) {
     else if (url.pathname.endsWith('/inventory_items')) body = [];
     else if (url.pathname.endsWith('/freezers')) body = [{ id: '55555555-5555-4555-8555-555555555555', name: 'Main Freezer', is_default: true }];
     else if (url.pathname.endsWith('/rpc/create_household') || url.pathname.endsWith('/rpc/join_household')) { connected = true; body = householdId; }
-    else if (url.pathname.endsWith('/rpc/create_household_invite')) body = '12345678-1234-4234-8234-123456789abc';
+    else if (url.pathname.endsWith('/functions/v1/invite-household')) body = { sent: true };
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) });
   });
 }
@@ -35,8 +35,51 @@ test('sign in, create household, and create invitation', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Your freezers', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Profile settings', exact: true }).click();
   await page.getByRole('button', { name: 'Share household' }).click();
-  await page.getByRole('button', { name: 'Copy invite link' }).click();
-  await expect(page.getByLabel('Invite link')).toHaveValue(/\?invite=12345678-1234-4234-8234-123456789abc$/);
+  await page.getByLabel('Their email address').fill('partner@example.com');
+  await page.getByRole('button', { name: 'Send invitation', exact: true }).click();
+  await expect(page.getByRole('status')).toContainText('Invitation sent to');
+});
+
+test('invitation email callback requires password setup before joining and survives reload', async ({ page }) => {
+  await mockBackend(page);
+  let joined = 0;
+  page.on('request', request => { if (request.url().endsWith('/rpc/join_household')) joined++; });
+  await page.goto(`/?invite=12345678-1234-4234-8234-123456789abc#access_token=${accessToken}&refresh_token=test-refresh-token&expires_in=3600&token_type=bearer&type=invite`);
+  await expect(page.getByRole('heading', { name: 'Choose a new password' })).toBeVisible();
+  expect(joined).toBe(0);
+  await page.reload();
+  await page.getByLabel('Password', { exact: true }).fill('new-test-password-456');
+  await page.getByLabel('Confirm password').fill('new-test-password-456');
+  await page.getByRole('button', { name: 'Save new password' }).click();
+  await expect(page.getByRole('heading', { name: 'Your freezers', exact: true })).toBeVisible();
+  expect(joined).toBeGreaterThan(0);
+});
+
+test('email sending failures retain the invite form and recipient for retry', async ({ page }) => {
+  await mockBackend(page, true); await login(page);
+  await page.route('**/functions/v1/invite-household', route => route.fulfill({ status: 502, contentType: 'application/json', body: JSON.stringify({ error: 'Email provider unavailable. Try again in a minute.' }) }));
+  await page.getByRole('button', { name: 'Profile settings' }).click();
+  await page.getByRole('button', { name: 'Share household' }).click();
+  await page.getByLabel('Their email address').fill('partner@example.com');
+  await page.getByRole('button', { name: 'Send invitation' }).click();
+  await expect(page.getByRole('alert')).toContainText('Email provider unavailable');
+  await expect(page.getByLabel('Their email address')).toHaveValue('partner@example.com');
+});
+
+test('mobile email invitation fits the screen and Cancel sends nothing', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await mockBackend(page, true); await login(page);
+  let sends = 0;
+  page.on('request', request => { if (request.url().includes('/functions/v1/invite-household')) sends++; });
+  await page.getByRole('button', { name: 'Profile settings' }).click();
+  await page.getByRole('button', { name: 'Share household' }).click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await expect(page.getByLabel('Their email address')).toBeFocused();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: '.local/email-invitation-mobile.png', fullPage: true });
+  await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  expect(sends).toBe(0);
 });
 test('join household using partner code', async ({ page }) => {
   await mockBackend(page); await login(page);
@@ -163,24 +206,4 @@ test('expired invite shows an actionable error without creating a household', as
   await expect(page.getByRole('button', { name: 'Try invitation again' })).toBeVisible();
   await page.getByRole('button', { name: 'Continue without this invitation' }).click();
   await expect(page.getByRole('heading', { name: 'Welcome home.' })).toBeVisible();
-});
-
-test('copy invite link works without Clipboard API and reuses the same invitation', async ({ page }) => {
-  await page.addInitScript(() => {
-    Object.defineProperty(navigator, 'clipboard', { value: undefined, configurable: true });
-    document.execCommand = command => {
-      if (command === 'copy') sessionStorage.setItem('test-copied-link', (document.activeElement as HTMLTextAreaElement).value);
-      return command === 'copy';
-    };
-  });
-  await mockBackend(page, true);
-  let created = 0;
-  page.on('request', request => { if (request.url().endsWith('/rpc/create_household_invite')) created++; });
-  await login(page); await page.getByRole('button', { name: 'Profile settings', exact: true }).click();
-  await page.getByRole('button', { name: 'Share household' }).click();
-  await page.getByRole('button', { name: 'Copy invite link', exact: true }).click();
-  await expect(page.getByRole('status')).toContainText('Invite link copied');
-  expect(await page.evaluate(() => sessionStorage.getItem('test-copied-link'))).toContain(`?invite=${invitation}`);
-  await page.getByRole('button', { name: 'Copy invite link', exact: true }).click();
-  expect(created).toBe(1);
 });

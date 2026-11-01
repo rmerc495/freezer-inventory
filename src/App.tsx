@@ -2,8 +2,9 @@ import { useEffect, useState, type FormEvent } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { Freezers } from './Freezers';
 import { ProfileMenu } from './ProfileMenu';
+import { ShareHousehold } from './ShareHousehold';
 import { InvitationJoin } from './InvitationJoin';
-import { readInvitation, clearInvitation, invitationUrl, confirmationRedirect, copyInviteLink } from './invitation';
+import { readInvitation, clearInvitation, confirmationRedirect } from './invitation';
 import { supabase, sessionStorageAdapter } from './supabase';
 
 type Household = { id: string; name: string; owner_id: string };
@@ -20,7 +21,10 @@ export function App() {
   const [loading, setLoading] = useState(true);
   const [invitation, setInvitation] = useState(readInvitation);
   const [joinedHousehold, setJoinedHousehold] = useState('');
-  const [mode, setMode] = useState<Mode>(() => sessionStorage.getItem(recoveryKey) ? 'reset' : invitation ? 'signup' : 'login');
+  const [mode, setMode] = useState<Mode>(() => {
+    if (new URLSearchParams(window.location.hash.slice(1)).get('type') === 'invite') sessionStorage.setItem(recoveryKey, 'true');
+    return sessionStorage.getItem(recoveryKey) ? 'reset' : invitation ? 'signup' : 'login';
+  });
   const [authError, setAuthError] = useState('');
   useEffect(() => {
     if (!supabase) { setLoading(false); return; }
@@ -107,12 +111,10 @@ function HouseholdApp({ session, initialHousehold }: { session: Session; initial
   const [error, setError] = useState('');
   const [name, setName] = useState('Our Freezer');
   const [code, setCode] = useState('');
-  const [invite, setInvite] = useState('');
   const [showShare, setShowShare] = useState(false);
-  const [shareNotice, setShareNotice] = useState('');
   const [onboard, setOnboard] = useState<'create' | 'join'>('create');
   const household = households.find(h => h.id === selected);
-  useEffect(() => { setInvite(''); setShareNotice(''); setShowShare(false); }, [selected]);
+  useEffect(() => { setShowShare(false); }, [selected]);
   async function loadHouseholds() {
     const { data, error } = await supabase!.from('households').select('id,name,owner_id').order('created_at');
     if (error) throw error;
@@ -129,19 +131,10 @@ function HouseholdApp({ session, initialHousehold }: { session: Session; initial
     });
   }
   return <main className="inventory-layout">
-    <ProfileMenu householdName={household?.name} email={session.user.email} busy={busy} canShare={household?.owner_id === session.user.id} onShare={() => setShowShare(value => !value)} onSignOut={() => { void signOut(); }}>
+    <ProfileMenu householdName={household?.name} email={session.user.email} busy={busy} canShare={household?.owner_id === session.user.id} onShare={() => setShowShare(true)} onSignOut={() => { void signOut(); }}>
       {households.length > 1 && <label>Switch household<select disabled={busy} value={selected} onChange={e => setSelected(e.target.value)}>{households.map(h => <option value={h.id} key={h.id}>{h.name}</option>)}</select></label>}
-      {showShare && <section className="share-panel"><h2>Invite your household</h2><p>Copy a one-time invite link and paste it into a text message. It opens account creation and connects them to your household after they confirm their email. The link expires in 7 days.</p>
-        {invite && <label>Invite link<input readOnly value={invitationUrl(invite)} onFocus={e => e.target.select()}/></label>}
-        <button className="secondary" disabled={busy} onClick={() => { void action(async () => {
-          let token = invite;
-          if (!token) { const { data, error } = await supabase!.rpc('create_household_invite', { p_household_id: selected }); if (error) throw error; token = data; setInvite(token); }
-          await copyInviteLink(invitationUrl(token)); setShareNotice('Invite link copied. Paste it into a text message.');
-        }); }}>Copy invite link</button>
-        {invite && <button className="text-button" disabled={busy} onClick={() => { void action(async () => { const { data, error } = await supabase!.rpc('create_household_invite', { p_household_id: selected }); if (error) throw error; setInvite(data); setShareNotice('New link created. Previous unused links no longer work. Copy this link to share it.'); }); }}>Replace invite link</button>}
-        {shareNotice && <p className="notice" role="status">{shareNotice}</p>}
-      </section>}
     </ProfileMenu>
+    {showShare && <ShareHousehold key={selected} householdId={selected} onClose={() => setShowShare(false)}/>}
     {error && <div className="error" role="alert">{error}<button className="text-button" onClick={() => { void action(loadHouseholds); }}>Try again</button></div>}
     {loading ? <p role="status">Finding your household…</p> : !household ? <section className="onboarding auth-card"><span className="eyebrow">YOUR HOME. YOUR SHARED FREEZERS.</span><h1>Welcome home.</h1><p className="muted">Start your household, or join the one your partner created.</p><div className="tabs"><button aria-pressed={onboard === 'create'} onClick={() => setOnboard('create')}>Start a household</button><button aria-pressed={onboard === 'join'} onClick={() => setOnboard('join')}>Join your household</button></div><form onSubmit={setup}>{onboard === 'create' ? <label>Household name<input value={name} onChange={e => setName(e.target.value)} required maxLength={100}/></label> : <label>Invitation code<input value={code} onChange={e => setCode(e.target.value)} placeholder="Paste the code from your partner" autoCapitalize="none" spellCheck={false} required maxLength={100}/></label>}<button className="primary" disabled={busy}>{busy ? 'One moment…' : onboard === 'create' ? 'Create household' : 'Join household'}<span aria-hidden="true">→</span></button></form></section> : <>
 
