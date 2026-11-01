@@ -15,14 +15,14 @@ This is the original design plan and the reference for future development. Compl
 
 Stage 1 is complete and accepted. The following refinements extend that original plan:
 
-- **Email invitations:** Profile icon → Share household → enter the recipient's login email → Send invitation. Supabase prepares new accounts and emails a password setup link. Existing accounts receive an email sign-in link. Acceptance joins the household only for the verified recipient. Invitations remain single-use and expire after seven days; old text invitation links remain supported.
+- **Email invitations:** Profile icon → Share household → enter the recipient's login email → Send invitation. Supabase prepares new accounts and emails a password setup link. Existing accounts receive an email sign-in link. Acceptance joins the household only for the verified recipient. Invitations remain single-use and expire after seven days; legacy unbound text invitation links are disabled; invitations require the intended verified email address.
 - **Multiple freezers:** Each household has named freezer folders. Existing items are assigned to Main Freezer. Members can add freezers or rename one in place using the edit icon beside its title (click away to save), select a folder to view/add stock, and use **Freezer swap** to choose a destination and quantity in a dialog. Duplicate names combine within a freezer; the same food in different freezers has separate quantities. Moves support Undo.
 - **Correct item names:** Use **Edit name** on an inventory row, or select a zero-stock name from autocomplete and choose **Edit saved name**. A new name renames the record; an existing name in the same freezer offers **Merge items** with a combined-quantity preview. Merging removes the old spelling from saved suggestions and preserves quantity Undo. Name corrections and merges themselves do not have an Undo button.
 - **Automatic spelling:** On submission, obvious missing/doubled letters or adjacent letter swaps can reuse one unambiguous saved name. Unfamiliar names save immediately and receive a conservative spelling check in the same background AI call as their tags. Corrections show **Keep my spelling**, which restores that addition and remembers the choice. Quantity changes need no spelling-check call.
 
 The current compact interface shows single-item entry with an autocomplete dropdown directly below Item name and Name/Recently Changed sorting. Household details and sharing live in the profile settings. Use the plus icon beside Your freezers to create another freezer. The bulk-entry interface and entry-mode tabs were removed at the user’s request to conserve space; the original roadmap above is retained as the design reference.
 
-Development invite links use the configured LAN address and require access to that network. Replace it with the permanent HTTPS address and update the invite callback allowlist at launch.
+Production email callbacks use `https://freezer-inventory.ryanmercier88.workers.dev/`. The narrow hosted Auth configuration excludes LAN and loopback callbacks; local development settings remain in `supabase/config.toml`. See [security hardening](docs/security-hardening.md) for rollout and verification.
 
 ## Database and Application Behavior
 

@@ -1,10 +1,16 @@
 # Authentication and household interface
 
+## Security update (November 1, 2026)
+
+Invitations now require the intended verified email address. The legacy `create_household_invite` RPC is removed, unused unbound invitations are invalidated, and even previously consumed unbound tokens cannot be redeemed again. Existing household memberships are preserved. Hosted Auth configuration now contains only the production HTTPS root and its invitation-query callback pattern. See [security hardening](security-hardening.md) for rollout status and verification.
+
+The development and legacy-link sections below describe earlier implementation history and are superseded by this update. Do not restore their LAN callback settings or bearer-link behavior.
+
 ## Email household invitations (November 2026)
 
 Profile settings → Share household now opens an email form. Send invitation calls the authenticated `invite-household` Edge Function. The server checks the caller's verified session and the household-owner permission before creating an email-bound, single-use invitation. New recipients are prepared in Supabase Auth using the admin invitation API; their email opens password setup before joining. Existing accounts receive an email sign-in link without a password change. No Auth action link, server credential, or temporary password is exposed to the inviting user.
 
-`create_household_email_invite` validates and normalizes the email, rejects existing members, and enforces a one-minute household invitation cooldown. Redemption checks the actual verified Auth email against the intended recipient. Membership is granted only after acceptance; legacy text invitations retain their existing behavior. Creating a new invitation replaces the previous unused invitation for that household.
+`create_household_email_invite` validates and normalizes the email, rejects existing members, and enforces a one-minute household invitation cooldown. Redemption checks the actual verified Auth email against the intended recipient. Membership is granted only after acceptance; legacy unbound text invitations are no longer accepted. Creating a new invitation replaces the previous unused invitation for that household.
 
 The Edge Function uses the built-in server-side Supabase credentials. `HOUSEHOLD_APP_URL` optionally overrides the production callback, which defaults to `https://freezer-inventory.ryanmercier88.workers.dev/`. When moving to a new domain, change this server setting and Supabase's Site URL/redirect allowlist together. The client does not control email callback destinations.
 
